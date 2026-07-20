@@ -4,17 +4,18 @@ Record Launch is a browser-based 2D physics puzzle prototype. Spin a record, con
 
 ## Play the prototype
 
-The current playable build is available at:
+The GitHub Pages build is available at:
 
-**https://record-launch.mattkrafft.chatgpt.site**
+**https://mattkrafft.github.io/record-launch/**
 
-No installation is required to play the hosted version.
+No installation is required to play the hosted version. After merging the Pages workflow for the first time, open **Settings → Pages** and select **GitHub Actions** as the publishing source. Every later merge to `main` will deploy automatically.
 
 ## Current features
 
 - Top-down rotating record
 - Custom stick/slip friction model
 - Adjustable speed from 0 to 120 RPM
+- Developer controls for mass, friction coefficients, and initial position
 - Spin, brake, and reset controls
 - Curved object trajectory
 - Timed level with gold, silver, and bronze targets
@@ -51,7 +52,7 @@ You can also download the repository as a ZIP from GitHub, extract it, and run `
 
 ## Testing without installing software
 
-Use the hosted prototype link above. GitHub stores the source and its history, but the repository page does not execute the game itself.
+Use the GitHub Pages link above. The deployment workflow rebuilds the game whenever changes are merged into `main`.
 
 ## Physics model
 
