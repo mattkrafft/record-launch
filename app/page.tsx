@@ -8,6 +8,20 @@ const BASKET = { x: 816, y: 120, w: 190, h: 142 };
 const START = { x: 500, y: 205 };
 
 type GameStatus = "ready" | "running" | "won";
+type Screen = "title" | "dev" | "game";
+type GameConfig = {
+  staticFriction: number;
+  kineticFriction: number;
+  startX: number;
+  startY: number;
+};
+
+const DEFAULT_CONFIG: GameConfig = {
+  staticFriction: 0.3,
+  kineticFriction: 0.2,
+  startX: START.x,
+  startY: START.y,
+};
 
 function medalFor(time: number) {
   if (time <= 8) return "GOLD";
@@ -24,7 +38,29 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<GameStatus>("ready");
   const [best, setBest] = useState<number | null>(null);
+  const [screen, setScreen] = useState<Screen>("title");
+  const [devConfig, setDevConfig] = useState<GameConfig>(DEFAULT_CONFIG);
+  const [activeConfig, setActiveConfig] = useState<GameConfig>(DEFAULT_CONFIG);
   const resetRef = useRef(0);
+
+  const launchGame = (config: GameConfig) => {
+    setActiveConfig({ ...config });
+    setSpeed(0);
+    setElapsed(0);
+    setActualRpm(0);
+    setStatus("ready");
+    resetRef.current += 1;
+    setScreen("game");
+  };
+
+  const returnToTitle = () => {
+    setSpeed(0);
+    setScreen("title");
+  };
+
+  const updateDevConfig = (field: keyof GameConfig, value: number) => {
+    setDevConfig((current) => ({ ...current, [field]: value }));
+  };
 
   const setSpeed = (value: number) => {
     const rpm = Math.max(0, Math.min(120, value));
@@ -57,6 +93,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (screen !== "game") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -67,7 +104,7 @@ export default function Home() {
     let lastReset = resetRef.current;
     let angle = 0;
     let omega = 0;
-    let puck = { x: START.x, y: START.y, vx: 0, vy: 0, stuck: true };
+    let puck = { x: activeConfig.startX, y: activeConfig.startY, vx: 0, vy: 0, stuck: true };
     let gameTime = 0;
     let won = false;
     let beatAt = 0;
@@ -75,7 +112,7 @@ export default function Home() {
     const restore = () => {
       angle = 0;
       omega = 0;
-      puck = { x: START.x, y: START.y, vx: 0, vy: 0, stuck: true };
+      puck = { x: activeConfig.startX, y: activeConfig.startY, vx: 0, vy: 0, stuck: true };
       gameTime = 0;
       won = false;
     };
@@ -195,8 +232,8 @@ export default function Home() {
       ctx.fillText("OBJECT 01", 28, 42);
       ctx.font = "500 13px system-ui";
       ctx.fillText("Mass 0.80 kg", 28, 66);
-      ctx.fillText("Static friction 0.30", 28, 87);
-      ctx.fillText("Kinetic friction 0.20", 28, 108);
+      ctx.fillText(`Static friction ${activeConfig.staticFriction.toFixed(2)}`, 28, 87);
+      ctx.fillText(`Kinetic friction ${activeConfig.kineticFriction.toFixed(2)}`, 28, 108);
 
       if (won) {
         ctx.fillStyle = "rgba(255,255,255,.94)";
@@ -237,7 +274,7 @@ export default function Home() {
         const surfaceVx = -omega * ry;
         const surfaceVy = omega * rx;
         const requiredAccel = Math.hypot(omega * omega * radius, alpha * radius);
-        const muSg = 0.30 * 520;
+        const muSg = activeConfig.staticFriction * 520;
 
         if (puck.stuck && requiredAccel <= muSg && radius < DISC.r - 20) {
           puck.vx = surfaceVx;
@@ -252,7 +289,7 @@ export default function Home() {
           const relVy = puck.vy - surfaceVy;
           const relSpeed = Math.max(Math.hypot(relVx, relVy), 1);
           if (radius < DISC.r) {
-            const frictionAccel = 0.20 * 520;
+            const frictionAccel = activeConfig.kineticFriction * 520;
             puck.vx += (-relVx / relSpeed) * frictionAccel * dt;
             puck.vy += (-relVy / relSpeed) * frictionAccel * dt;
           }
@@ -283,7 +320,51 @@ export default function Home() {
     };
     frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [screen, activeConfig]);
+
+  if (screen === "title") {
+    return (
+      <main className="menu-shell">
+        <section className="title-card">
+          <div className="title-record"><span>●</span></div>
+          <p className="eyebrow">PHYSICS IN MOTION</p>
+          <h1>RECORD LAB</h1>
+          <p className="title-copy">Spin the record. Break static friction. Land the puck in its basket.</p>
+          <div className="menu-actions">
+            <button className="play-button" onClick={() => launchGame(DEFAULT_CONFIG)}>▶ PLAY</button>
+            <button className="dev-button" onClick={() => setScreen("dev")}>⚙ DEV MODE</button>
+          </div>
+          <p className="prototype-tag">LEVEL 01 · PROTOTYPE</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "dev") {
+    return (
+      <main className="menu-shell">
+        <section className="dev-panel">
+          <div className="dev-heading">
+            <div><p className="eyebrow">EXPERIMENT SETUP</p><h1>DEV MODE</h1></div>
+            <button className="close-button" onClick={() => setScreen("title")}>×</button>
+          </div>
+          <p className="dev-intro">Adjust the puck contact properties and its initial center position on the 1100 × 760 playfield.</p>
+          <div className="dev-grid">
+            <label><span>Static friction (μs)</span><output>{devConfig.staticFriction.toFixed(2)}</output><input type="range" min="0.05" max="0.8" step="0.01" value={devConfig.staticFriction} onChange={(e) => updateDevConfig("staticFriction", Number(e.target.value))}/></label>
+            <label><span>Kinetic friction (μk)</span><output>{devConfig.kineticFriction.toFixed(2)}</output><input type="range" min="0.01" max="0.7" step="0.01" value={devConfig.kineticFriction} onChange={(e) => updateDevConfig("kineticFriction", Number(e.target.value))}/></label>
+            <label><span>Initial X position</span><output>{devConfig.startX.toFixed(0)}</output><input type="range" min="260" max="740" step="5" value={devConfig.startX} onChange={(e) => updateDevConfig("startX", Number(e.target.value))}/></label>
+            <label><span>Initial Y position</span><output>{devConfig.startY.toFixed(0)}</output><input type="range" min="140" max="620" step="5" value={devConfig.startY} onChange={(e) => updateDevConfig("startY", Number(e.target.value))}/></label>
+          </div>
+          {devConfig.kineticFriction > devConfig.staticFriction && <div className="dev-warning">Kinetic friction is normally less than or equal to static friction.</div>}
+          <div className="dev-summary"><span className="puck-swatch"/><div><b>TEST CONFIGURATION</b><small>Start ({devConfig.startX.toFixed(0)}, {devConfig.startY.toFixed(0)}) · μs {devConfig.staticFriction.toFixed(2)} · μk {devConfig.kineticFriction.toFixed(2)}</small></div></div>
+          <div className="dev-actions">
+            <button className="reset-defaults" onClick={() => setDevConfig(DEFAULT_CONFIG)}>RESTORE DEFAULTS</button>
+            <button className="play-button" onClick={() => launchGame(devConfig)}>▶ RUN TEST</button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="game-shell">
@@ -308,10 +389,11 @@ export default function Home() {
           </div>
           <button className="spin" onClick={spin}>▶ SPIN</button>
           <button className="brake" onClick={() => setSpeed(0)}>◉ BRAKE</button>
-          <div className="object-card"><span className="puck-swatch"/><div><b>CYAN PUCK</b><small>μs 0.30 · μk 0.20</small></div></div>
+          <div className="object-card"><span className="puck-swatch"/><div><b>CYAN PUCK</b><small>μs {activeConfig.staticFriction.toFixed(2)} · μk {activeConfig.kineticFriction.toFixed(2)}</small></div></div>
           <div className="tips"><b>HOW TO PLAY</b><p>Raise the RPM until the puck slips. Brake at the right moment to curve it into the basket.</p></div>
           {best !== null && <div className="best">BEST&nbsp; {best.toFixed(2)} s</div>}
           <button className="reset" onClick={reset}>↻ RESET LEVEL</button>
+          <button className="menu-button" onClick={returnToTitle}>← TITLE SCREEN</button>
           <div className={`status ${status}`}>{status === "ready" ? "READY TO TEST" : status === "running" ? "EXPERIMENT RUNNING" : "LEVEL COMPLETE"}</div>
         </aside>
       </section>
